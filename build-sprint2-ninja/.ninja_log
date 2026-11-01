@@ -1,0 +1,11 @@
+# ninja log v7
+91	748	8152331190457224	CMakeFiles/scanner_tests.dir/tests/FileScannerTests.cpp.obj	167b31c7b070b893
+80	787	8152331190307599	CMakeFiles/chronovault.dir/src/main.cpp.obj	2994e745c45f5447
+49	795	8152331189918919	CMakeFiles/chronovault_core.dir/src/FileScanner.cpp.obj	6df40bfef0a1689f
+102	808	8152331190577050	CMakeFiles/backup_tests.dir/tests/BackupEngineTests.cpp.obj	18d98ac2bb6e0e5
+66	938	8152331190156733	CMakeFiles/chronovault_core.dir/src/BackupEngine.cpp.obj	302e9b695d49fdae
+57	1162	8152331190111717	CMakeFiles/chronovault_core.dir/src/Repository.cpp.obj	7796e558485bd581
+1162	1576	8152331201115588	libchronovault_core.a	e87ac8d0e2a75f72
+1584	1747	8152331205387063	scanner_tests.exe	a7e5ca680136f530
+1577	1767	8152331205280920	chronovault.exe	39ad862838fc442d
+1593	1768	8152331205425604	backup_tests.exe	bcd048f9f1437bc4

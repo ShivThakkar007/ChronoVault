@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(chronovault_core
     src/FileScanner.cpp
+    src/Repository.cpp
+    src/BackupEngine.cpp
 )
 target_include_directories(chronovault_core PUBLIC include)
 
@@ -25,4 +27,8 @@ if(BUILD_TESTING)
     add_executable(scanner_tests tests/FileScannerTests.cpp)
     target_link_libraries(scanner_tests PRIVATE chronovault_core)
     add_test(NAME scanner_tests COMMAND scanner_tests)
+
+    add_executable(backup_tests tests/BackupEngineTests.cpp)
+    target_link_libraries(backup_tests PRIVATE chronovault_core)
+    add_test(NAME backup_tests COMMAND backup_tests)
 endif()
