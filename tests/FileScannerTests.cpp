@@ -13,7 +13,7 @@ class TemporaryDirectory {
 public:
     TemporaryDirectory() {
         const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-        path_ = fs::temp_directory_path() / ("chronovault-test-" + std::to_string(stamp));
+        path_ = fs::current_path() / ("chronovault-test-" + std::to_string(stamp));
         fs::create_directories(path_);
     }
     ~TemporaryDirectory() {

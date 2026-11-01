@@ -10,6 +10,9 @@ add_library(chronovault_core
     src/FileScanner.cpp
     src/Repository.cpp
     src/BackupEngine.cpp
+    src/Version.cpp
+    src/ChangeDetector.cpp
+    src/VersionManager.cpp
 )
 target_include_directories(chronovault_core PUBLIC include)
 
@@ -31,4 +34,8 @@ if(BUILD_TESTING)
     add_executable(backup_tests tests/BackupEngineTests.cpp)
     target_link_libraries(backup_tests PRIVATE chronovault_core)
     add_test(NAME backup_tests COMMAND backup_tests)
+
+    add_executable(version_tests tests/VersionTests.cpp)
+    target_link_libraries(version_tests PRIVATE chronovault_core)
+    add_test(NAME version_tests COMMAND version_tests)
 endif()

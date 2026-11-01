@@ -1,6 +1,7 @@
 #include "chronovault/BackupEngine.hpp"
 
 #include <chrono>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -8,14 +9,32 @@
 #include <stdexcept>
 #include <string>
 
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace fs = std::filesystem;
 
 class TemporaryDirectory {
 public:
     TemporaryDirectory() {
+        static std::atomic<unsigned long long> sequence{0};
+#ifdef _WIN32
+        const auto process = static_cast<unsigned long long>(::_getpid());
+#else
+        const auto process = static_cast<unsigned long long>(::getpid());
+#endif
         const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-        path_ = fs::temp_directory_path() / ("chronovault-backup-test-" + std::to_string(stamp));
-        fs::create_directories(path_);
+        for (int attempt = 0; attempt < 100; ++attempt) {
+            path_ = fs::current_path() / ("chronovault-backup-test-" + std::to_string(process)
+                + "-" + std::to_string(stamp) + "-" + std::to_string(sequence.fetch_add(1)));
+            std::error_code error;
+            if (fs::create_directory(path_, error)) return;
+            if (error) throw fs::filesystem_error("Cannot create test fixture", path_, error);
+        }
+        throw std::runtime_error("Could not allocate a unique backup test directory.");
     }
     ~TemporaryDirectory() {
         std::error_code ignored;
@@ -97,11 +116,71 @@ void testOverlappingPathsAreRejectedWithoutSnapshot() {
             "rejected backup must not be visible as a snapshot");
 }
 
+void testFailedPublicationDoesNotReplaceExistingSnapshot() {
+    TemporaryDirectory temp;
+    const auto source = temp.path() / "source" / "payload.txt";
+    const auto repositoryPath = temp.path() / "repository";
+    std::filesystem::create_directories(source.parent_path());
+    std::ofstream(source, std::ios::binary) << "original snapshot";
+    const chronovault::Repository repository(repositoryPath);
+    const auto original = chronovault::BackupEngine(repository).createBackup(source.parent_path());
+    const auto originalFile = repository.snapshotsPath() / original.id / "files" / "payload.txt";
+
+    const auto staged = repository.stagingPath() / original.id;
+    fs::create_directories(staged / "files");
+    std::ofstream(staged / "files" / "payload.txt", std::ios::binary) << "must not replace";
+    chronovault::SnapshotMetadata conflicting = original;
+    conflicting.trackedFiles.front().sizeBytes = 16;
+    repository.writeMetadata(staged, conflicting);
+
+    bool failed = false;
+    std::string failureMessage;
+    try {
+        repository.publishSnapshot(original.id);
+    } catch (const std::exception& error) {
+        failed = true;
+        failureMessage = error.what();
+    }
+    require(failed, "publishing an existing snapshot ID must fail");
+    require(failureMessage.find("already exists") != std::string::npos,
+            "Windows destination collision should be reported as an ID conflict");
+#ifdef _WIN32
+    require(failureMessage.find("Windows error ") != std::string::npos,
+            "failed Windows move should retain its native error code for collision diagnosis");
+#endif
+    require(readAll(originalFile) == "original snapshot", "failed publication must preserve existing snapshot data");
+    const auto listed = repository.listSnapshots();
+    require(listed.size() == 1 && listed.front().id == original.id,
+            "failed publication must not create an additional completed snapshot");
+    require(!fs::exists(staged), "failed publication must clean its staging directory");
+
+    const std::string incompleteId = "123456789-123-1";
+    const auto incompleteDestination = repository.snapshotsPath() / incompleteId;
+    fs::create_directory(incompleteDestination);
+    const auto incompleteStaging = repository.stagingPath() / incompleteId;
+    fs::create_directories(incompleteStaging / "files");
+    std::ofstream(incompleteStaging / "files" / "payload.txt", std::ios::binary) << "partial";
+    auto incompleteMetadata = original;
+    incompleteMetadata.id = incompleteId;
+    repository.writeMetadata(incompleteStaging, incompleteMetadata);
+    bool incompletePublishFailed = false;
+    try {
+        repository.publishSnapshot(incompleteId);
+    } catch (const std::exception&) {
+        incompletePublishFailed = true;
+    }
+    require(incompletePublishFailed, "publication must fail when a destination ID already exists");
+    require(repository.listSnapshots().size() == 1,
+            "an incomplete destination directory must not be listed as a completed snapshot");
+    require(!fs::exists(incompleteStaging), "failed publication must clean incomplete staging data");
+}
+
 int main() {
     try {
         testDirectoryBackupAndMetadataPersistence();
         testSingleFileBackupAndUniqueIds();
         testOverlappingPathsAreRejectedWithoutSnapshot();
+        testFailedPublicationDoesNotReplaceExistingSnapshot();
         std::cout << "All BackupEngine tests passed.\n";
         return 0;
     } catch (const std::exception& error) {

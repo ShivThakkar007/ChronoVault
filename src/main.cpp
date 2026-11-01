@@ -1,5 +1,6 @@
 #include "chronovault/FileScanner.hpp"
 #include "chronovault/BackupEngine.hpp"
+#include "chronovault/VersionManager.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -96,14 +97,93 @@ void listSnapshots() {
     }
 }
 
+const char* changeSymbol(chronovault::ChangeType type) {
+    switch (type) {
+    case chronovault::ChangeType::Added: return "+";
+    case chronovault::ChangeType::Modified: return "M";
+    case chronovault::ChangeType::Deleted: return "-";
+    case chronovault::ChangeType::Unchanged: return "=";
+    }
+    return "?";
+}
+
+const char* changeLabel(chronovault::ChangeType type) {
+    switch (type) {
+    case chronovault::ChangeType::Added: return "Added";
+    case chronovault::ChangeType::Modified: return "Modified";
+    case chronovault::ChangeType::Deleted: return "Deleted";
+    case chronovault::ChangeType::Unchanged: return "Unchanged";
+    }
+    return "Unknown";
+}
+
+void viewHistory() {
+    const auto repositoryPath = readPath("Repository directory: ");
+    try {
+        const chronovault::VersionManager manager{chronovault::Repository(repositoryPath)};
+        const auto versions = manager.history();
+        if (versions.empty()) {
+            std::cout << "No version history found.\n";
+            return;
+        }
+        for (const auto& version : versions) {
+            std::cout << "Version " << version.number() << "  |  " << version.snapshotId()
+                      << "  |  " << formatTime(version.createdAt()) << "  |  "
+                      << version.sourceDirectory().u8string() << "  |  "
+                      << version.trackedFileCount() << " file(s)";
+            if (version.number() == 1) std::cout << "  |  first version (no previous snapshot)";
+            std::cout << '\n';
+        }
+    } catch (const std::exception& error) {
+        std::cerr << "Could not read version history: " << error.what() << '\n';
+    }
+}
+
+void compareSnapshots() {
+    const auto repositoryPath = readPath("Repository directory: ");
+    const auto olderId = readPath("Older snapshot ID: ");
+    const auto newerId = readPath("Newer snapshot ID: ");
+    try {
+        const chronovault::VersionManager manager{chronovault::Repository(repositoryPath)};
+        const auto comparison = manager.compare(olderId, newerId);
+        std::cout << "\nSnapshot Comparison: version " << comparison.olderVersion.number()
+                  << " -> version " << comparison.newerVersion.number() << "\n";
+        for (const auto type : {chronovault::ChangeType::Added, chronovault::ChangeType::Modified,
+                                chronovault::ChangeType::Deleted, chronovault::ChangeType::Unchanged}) {
+            std::cout << '\n' << changeLabel(type) << " Files:\n";
+            bool found = false;
+            for (const auto& file : comparison.files) {
+                if (file.type == type) {
+                    std::cout << changeSymbol(type) << " " << file.relativePath.generic_string() << '\n';
+                    found = true;
+                }
+            }
+            if (!found) std::cout << "(none)\n";
+        }
+        const auto counts = comparison.summary();
+        std::cout << "\nSummary:\nAdded: " << counts.added
+                  << "\nModified: " << counts.modified
+                  << "\nDeleted: " << counts.deleted
+                  << "\nUnchanged: " << counts.unchanged << '\n';
+        for (const auto& issue : comparison.issues) {
+            std::cerr << "Could not compare " << issue.relativePath.generic_string()
+                      << ": " << issue.message << '\n';
+        }
+    } catch (const std::exception& error) {
+        std::cerr << "Could not compare snapshots: " << error.what() << '\n';
+    }
+}
+
 } // namespace
 
 int main() {
     while (true) {
-        std::cout << "\nChronoVault - Sprint 2\n"
+        std::cout << "\nChronoVault - Sprint 3\n"
                   << "1. Scan a directory\n"
                   << "2. Create a full backup\n"
                   << "3. List snapshots\n"
+                  << "4. View version history\n"
+                  << "5. Compare two snapshots\n"
                   << "0. Exit\n"
                   << "Choice: ";
         std::string choice;
@@ -115,7 +195,9 @@ int main() {
         if (choice == "1") scanDirectory();
         else if (choice == "2") createBackup();
         else if (choice == "3") listSnapshots();
-        else std::cout << "Please choose 1, 2, 3, or 0.\n";
+        else if (choice == "4") viewHistory();
+        else if (choice == "5") compareSnapshots();
+        else std::cout << "Please choose 1, 2, 3, 4, 5, or 0.\n";
     }
     return 0;
 }

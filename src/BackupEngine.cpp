@@ -3,8 +3,15 @@
 #include <atomic>
 #include <chrono>
 #include <cwchar>
+#include <iostream>
 #include <system_error>
 #include <utility>
+
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace chronovault {
 namespace {
@@ -16,21 +23,8 @@ public:
         if (active_) {
             std::error_code ignored;
             std::filesystem::remove_all(path_, ignored);
-        }
-    }
-    void release() noexcept { active_ = false; }
-private:
-    std::filesystem::path path_;
-    bool active_ = true;
-};
-
-class PublishedCleanup {
-public:
-    explicit PublishedCleanup(std::filesystem::path path) : path_(std::move(path)) {}
-    ~PublishedCleanup() {
-        if (active_) {
-            std::error_code ignored;
-            std::filesystem::remove_all(path_, ignored);
+            if (ignored) std::cerr << "Could not clean backup staging directory "
+                                   << path_.string() << ": " << ignored.message() << '\n';
         }
     }
     void release() noexcept { active_ = false; }
@@ -41,9 +35,15 @@ private:
 
 std::string createId() {
     static std::atomic<unsigned long long> sequence{0};
+#ifdef _WIN32
+    const auto process = static_cast<unsigned long long>(::_getpid());
+#else
+    const auto process = static_cast<unsigned long long>(::getpid());
+#endif
     const auto now = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
-    return std::to_string(now) + "-" + std::to_string(sequence.fetch_add(1));
+    return std::to_string(now) + "-" + std::to_string(process) + "-"
+        + std::to_string(sequence.fetch_add(1));
 }
 
 bool isWithin(const std::filesystem::path& child, const std::filesystem::path& parent) {
@@ -153,23 +153,8 @@ SnapshotMetadata BackupEngine::createBackup(const std::filesystem::path& source)
     }
 
     repository_.writeMetadata(stagingDirectory, metadata);
-    // Reserve the destination atomically so a concurrent backup can never replace it.
-    if (!std::filesystem::create_directory(publishedDirectory, error)) {
-        if (error) throw std::filesystem::filesystem_error(
-            "Cannot reserve snapshot destination", publishedDirectory, error);
-        throw std::runtime_error("Snapshot ID already exists; refusing to overwrite it.");
-    }
-    PublishedCleanup publishedCleanup(publishedDirectory);
-    std::filesystem::rename(stagingDirectory / "files", publishedDirectory / "files", error);
-    if (error) throw std::filesystem::filesystem_error(
-        "Cannot publish snapshot files", stagingDirectory / "files", publishedDirectory / "files", error);
-    // The manifest is the commit marker: listing ignores a destination until this final rename succeeds.
-    std::filesystem::rename(stagingDirectory / "snapshot.cvmeta",
-                            publishedDirectory / "snapshot.cvmeta", error);
-    if (error) throw std::filesystem::filesystem_error(
-        "Cannot publish snapshot metadata", stagingDirectory / "snapshot.cvmeta",
-        publishedDirectory / "snapshot.cvmeta", error);
-    publishedCleanup.release();
+    repository_.publishSnapshot(metadata.id);
+    cleanup.release();
     return metadata;
 }
 

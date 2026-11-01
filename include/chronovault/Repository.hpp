@@ -27,6 +27,9 @@ public:
     [[nodiscard]] std::filesystem::path stagingPath() const;
     [[nodiscard]] std::vector<SnapshotMetadata> listSnapshots() const;
 
+    // Atomically moves a complete staged snapshot into place without replacing an existing ID.
+    void publishSnapshot(const std::string& id) const;
+
     void writeMetadata(const std::filesystem::path& directory,
                        const SnapshotMetadata& metadata) const;
     [[nodiscard]] SnapshotMetadata readMetadata(const std::filesystem::path& file) const;
