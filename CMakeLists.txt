@@ -10,6 +10,7 @@ add_library(chronovault_core
     src/FileScanner.cpp
     src/Repository.cpp
     src/BackupEngine.cpp
+    src/RestoreEngine.cpp
     src/Version.cpp
     src/ChangeDetector.cpp
     src/VersionManager.cpp
@@ -38,4 +39,8 @@ if(BUILD_TESTING)
     add_executable(version_tests tests/VersionTests.cpp)
     target_link_libraries(version_tests PRIVATE chronovault_core)
     add_test(NAME version_tests COMMAND version_tests)
+
+    add_executable(restore_tests tests/RestoreEngineTests.cpp)
+    target_link_libraries(restore_tests PRIVATE chronovault_core)
+    add_test(NAME restore_tests COMMAND restore_tests)
 endif()

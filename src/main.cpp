@@ -1,5 +1,6 @@
 #include "chronovault/FileScanner.hpp"
 #include "chronovault/BackupEngine.hpp"
+#include "chronovault/RestoreEngine.hpp"
 #include "chronovault/VersionManager.hpp"
 
 #include <chrono>
@@ -174,16 +175,51 @@ void compareSnapshots() {
     }
 }
 
+void restoreSnapshot() {
+    const auto repositoryPath = readPath("Repository directory: ");
+    const auto snapshotId = readPath("Enter snapshot ID: ");
+    const auto destination = readPath("Enter destination path: ");
+    if (repositoryPath.empty() || snapshotId.empty() || destination.empty()) {
+        std::cout << "Repository, snapshot ID, and destination are required.\n";
+        return;
+    }
+
+    try {
+        const chronovault::RestoreEngine engine{chronovault::Repository(repositoryPath)};
+        const auto preview = engine.preview(snapshotId, destination);
+        std::cout << "\nRestoration Preview:\n"
+                  << "Snapshot ID: " << preview.snapshotId << '\n'
+                  << "Files to restore: " << preview.filesToRestore << '\n'
+                  << "Destination: " << preview.destination.string() << '\n'
+                  << "Confirm restoration? (y/n): ";
+        std::string confirmation;
+        if (!std::getline(std::cin, confirmation)
+            || (confirmation != "y" && confirmation != "Y")) {
+            std::cout << "Restoration cancelled.\n";
+            return;
+        }
+
+        const auto result = engine.restore(snapshotId, preview.destination);
+        std::cout << "\nRestoration completed successfully.\n"
+                  << "Files restored: " << result.filesRestored << '\n'
+                  << "Files failed: " << result.filesFailed << '\n';
+    } catch (const std::exception& error) {
+        std::cerr << "Restoration failed; destination was not published. " << error.what()
+                  << "\nFiles failed: 1\n";
+    }
+}
+
 } // namespace
 
 int main() {
     while (true) {
-        std::cout << "\nChronoVault - Sprint 3\n"
+        std::cout << "\nChronoVault - Sprint 4\n"
                   << "1. Scan a directory\n"
                   << "2. Create a full backup\n"
                   << "3. List snapshots\n"
                   << "4. View version history\n"
                   << "5. Compare two snapshots\n"
+                  << "6. Restore a snapshot\n"
                   << "0. Exit\n"
                   << "Choice: ";
         std::string choice;
@@ -197,7 +233,8 @@ int main() {
         else if (choice == "3") listSnapshots();
         else if (choice == "4") viewHistory();
         else if (choice == "5") compareSnapshots();
-        else std::cout << "Please choose 1, 2, 3, 4, 5, or 0.\n";
+        else if (choice == "6") restoreSnapshot();
+        else std::cout << "Please choose 1, 2, 3, 4, 5, 6, or 0.\n";
     }
     return 0;
 }

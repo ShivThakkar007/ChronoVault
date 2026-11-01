@@ -34,4 +34,8 @@ The `snapshot.cvmeta` manifest uses a version header and line-oriented fields. P
 
 The CLI adds version history and two-snapshot comparison. The first snapshot for a source is version 1 and is shown as having no previous version. Different sources maintain independent sequences.
 
-Incremental backups and restoration remain out of scope. Future work may add cleanup of stale staging directories with an explicit concurrency-safe policy.
+### Sprint 4: file restoration
+
+`RestoreEngine` composes an existing `Repository`; it reuses repository snapshot listing and manifest reading rather than changing the manifest format. `preview(snapshotId, destination)` validates the ID, completed snapshot manifest, destination parent, nonexistence of the destination, repository/destination separation, and manifest-relative paths. `restore` stages files in a unique sibling directory, rejects symlinks and malformed/traversing paths, copies and verifies each listed file, restores modification timestamps where supported, then publishes the staged directory using a same-volume atomic rename with no replace or copy flags on Windows. Existing destinations are never overwritten. RAII cleanup removes a failed staging directory and no partial destination is returned as successful. The CLI shows a preview and asks for confirmation before restoring.
+
+Restoration does not alter the repository or snapshot. Only files represented in the existing manifest are restored, so empty source directories are not recreated. The destination parent must already exist. Interrupted process termination can leave a sibling staging directory; automatic stale-stage cleanup is intentionally deferred because it must be safe around concurrent restores. Incremental backups remain out of scope.

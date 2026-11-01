@@ -42,6 +42,16 @@
 - [x] Capture Win32 error code/message and pre-publish source, destination, volume, attribute, manifest, and access state on failed publication.
 - [x] Capture final filesystem state after publication retries and retry only transient Windows access/sharing errors under verified same-volume, no-collision, access-allowed conditions; retain atomic no-replace publication.
 
+## Sprint 4 — file restoration complete
+
+- [x] Add `RestoreEngine` with preview and restore operations composed over `Repository`.
+- [x] Validate completed snapshots, manifest paths, repository boundaries, and a new destination directory.
+- [x] Restore manifest-listed files through a sibling staging directory, verify copied sizes, and preserve timestamps where supported.
+- [x] Publish the restored directory atomically without replacing existing destinations; clean staging on handled failures.
+- [x] Add CLI preview, confirmation, and restore reporting.
+- [x] Add isolated tests for directory and single-file restores, nested/empty/binary files, timestamps, missing/incomplete snapshots, traversal, collisions, cleanup, and snapshot immutability.
+- [x] Build and run the new restoration suite independently and with all existing CTest suites.
+
 ## Later sprints
 
 - [ ] Implement incremental backups.
