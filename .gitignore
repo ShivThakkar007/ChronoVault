@@ -1,0 +1,22 @@
+# Build files
+build/
+cmake-build-*/
+
+# Executables and object files
+*.exe
+*.o
+*.obj
+*.dll
+*.a
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
